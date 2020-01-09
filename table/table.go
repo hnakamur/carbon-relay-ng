@@ -623,7 +623,7 @@ func (table *Table) InitBlacklist(config cfg.Config) error {
 
 func (table *Table) InitAggregation(config cfg.Config) error {
 	for i, aggConfig := range config.Aggregation {
-		agg, err := aggregator.New(aggConfig.Function, aggConfig.Regex, aggConfig.Prefix, aggConfig.Substr, aggConfig.Format, aggConfig.Cache, uint(aggConfig.Interval), uint(aggConfig.Wait), aggConfig.DropRaw, table.In)
+		agg, err := aggregator.NewGoroutines(aggConfig.Function, aggConfig.Regex, aggConfig.Prefix, aggConfig.Substr, aggConfig.Format, aggConfig.Cache, uint(aggConfig.Interval), uint(aggConfig.Wait), aggConfig.DropRaw, aggConfig.Goroutines, table.In)
 		if err != nil {
 			log.Error(err.Error())
 			return fmt.Errorf("could not add aggregation #%d", i+1)

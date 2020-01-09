@@ -26,6 +26,9 @@ regex = '^stats\.timers\.(app|proxy|static)[0-9]+\.requests\.(.*)'
 format = 'stats.timers._sum_$1.requests.$2'
 interval = 10
 wait = 20
+# 0 means 1 (for compatibility), a positive value means the value itself,
+# a negative value means the number of logical CPUs
+goroutines = -1
 
 [[aggregation]]
 # aggregate timer metrics with averages

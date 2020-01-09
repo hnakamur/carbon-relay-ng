@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"regexp"
+	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -93,6 +94,16 @@ func New(fun, regex, prefix, sub, outFmt string, cache bool, interval, wait uint
 }
 
 func NewMocked(fun, regex, prefix, sub, outFmt string, cache bool, interval, wait uint, dropRaw bool, out chan []byte, inBuf int, now func() time.Time, tick <-chan time.Time) (*Aggregator, error) {
+	return NewMockedGoroutines(fun, regex, prefix, sub, outFmt, cache, interval, wait, dropRaw, 1, out, inBuf, now, tick)
+}
+
+// New creates an aggregator with specified count of goroutines
+func NewGoroutines(fun, regex, prefix, sub, outFmt string, cache bool, interval, wait uint, dropRaw bool, goroutines int, out chan []byte) (*Aggregator, error) {
+	ticker := clock.AlignedTick(time.Duration(interval)*time.Second, time.Duration(wait)*time.Second, 2)
+	return NewMockedGoroutines(fun, regex, prefix, sub, outFmt, cache, interval, wait, dropRaw, goroutines, out, 2000, time.Now, ticker)
+}
+
+func NewMockedGoroutines(fun, regex, prefix, sub, outFmt string, cache bool, interval, wait uint, dropRaw bool, goroutines int, out chan []byte, inBuf int, now func() time.Time, tick <-chan time.Time) (*Aggregator, error) {
 	regexObj, err := regexp.Compile(regex)
 	if err != nil {
 		return nil, err
@@ -138,7 +149,16 @@ func NewMocked(fun, regex, prefix, sub, outFmt string, cache bool, interval, wai
 	a.numIn = stats.Counter("unit=Metric.direction=in.aggregator=" + a.Key)
 	a.numFlushed = stats.Counter("unit=Metric.direction=out.aggregator=" + a.Key)
 	a.wg.Add(1)
-	go a.run()
+
+	if goroutines == 0 {
+		// default value is 1 for compatibility
+		goroutines = 1
+	} else if goroutines < 0 {
+		goroutines = runtime.NumCPU()
+	}
+	for i := 0; i < goroutines; i++ {
+		go a.run()
+	}
 	return a, nil
 }
 
