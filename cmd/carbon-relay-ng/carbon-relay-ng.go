@@ -58,6 +58,10 @@ func usage() {
 }
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 
 	flag.Usage = usage
 	flag.Parse()
@@ -69,14 +73,15 @@ func main() {
 		val := flag.Arg(0)
 		if val == "version" {
 			fmt.Printf("carbon-relay-ng %s (built with %s)\n", Version, runtime.Version())
-			return
+			return 0
 		}
 		config_file = val
 	}
 
 	meta, err := toml.DecodeFile(config_file, &config)
 	if err != nil {
-		log.Fatalf("Invalid config file %q: %s", config_file, err.Error())
+		log.Errorf("Invalid config file %q: %s", config_file, err.Error())
+		return 1
 	}
 	//runtime.SetBlockProfileRate(1) // to enable block profiling. in my experience, adds 35% overhead.
 
@@ -85,7 +90,8 @@ func main() {
 	log.SetFormatter(formatter)
 	lvl, err := log.ParseLevel(config.Log_level)
 	if err != nil {
-		log.Fatalf("failed to parse log-level %q: %s", config.Log_level, err.Error())
+		log.Errorf("failed to parse log-level %q: %s", config.Log_level, err.Error())
+		return 1
 	}
 	log.SetLevel(lvl)
 
@@ -101,7 +107,7 @@ func main() {
 	config.Instance = os.Expand(config.Instance, expandVars)
 	if len(config.Instance) == 0 {
 		log.Error("instance identifier cannot be empty")
-		os.Exit(1)
+		return 1
 	}
 
 	log.Infof("===== carbon-relay-ng instance '%s' starting. (version %s) =====", config.Instance, Version)
@@ -143,7 +149,8 @@ func main() {
 	if config.Instrumentation.Graphite_addr != "" {
 		addr, err := net.ResolveTCPAddr("tcp", config.Instrumentation.Graphite_addr)
 		if err != nil {
-			log.Fatal(err)
+			log.Error(err)
+			return 1
 		}
 		go metrics.Graphite(metrics.DefaultRegistry, time.Duration(config.Instrumentation.Graphite_interval)*time.Millisecond, "", addr)
 
@@ -153,7 +160,8 @@ func main() {
 		statsmt.NewMemoryReporter()
 		_, err = statsmt.NewProcessReporter()
 		if err != nil {
-			log.Fatalf("stats: could not initialize process reporter: %v", err)
+			log.Errorf("stats: could not initialize process reporter: %v", err)
+			return 1
 		}
 		aggregator.NewAggregatorReporter()
 		statsmt.NewGraphite("carbon-relay-ng.stats."+config.Instance, config.Instrumentation.Graphite_addr, config.Instrumentation.Graphite_interval/1000, 1000, time.Second*10)
@@ -164,7 +172,7 @@ func main() {
 	table, err := tbl.InitFromConfig(config, meta)
 	if err != nil {
 		log.Error(err.Error())
-		os.Exit(1)
+		return 1
 	}
 
 	tablePrinted := table.Print()
@@ -191,7 +199,7 @@ func main() {
 		err := in.Start()
 		if err != nil {
 			log.Error(err.Error())
-			os.Exit(1)
+			return 1
 		}
 	}
 
@@ -199,7 +207,8 @@ func main() {
 		go func() {
 			err := telnet.Start(config.Admin_addr, table)
 			if err != nil {
-				log.Fatalf("Error listening: %s", err.Error())
+				log.Errorf("Error listening: %s", err.Error())
+				return
 			}
 		}()
 	}
@@ -216,9 +225,9 @@ func main() {
 		log.Infof("Received signal %q. Shutting down", sig)
 	}
 	if !manager.Stop(inputs, shutdownTimeout) {
-		os.Exit(1)
+		return 1
 	}
-	os.Exit(0)
+	return 0
 }
 
 func expandVars(in string) (out string) {
