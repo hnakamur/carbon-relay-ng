@@ -2,7 +2,7 @@ VERSION=$(shell git describe --tags --always | sed 's/^v//')
 export GO111MODULE := on
 
 build:
-	cd ui/web && go-bindata -pkg web admin_http_assets/...
+	#cd ui/web && go-bindata -pkg web admin_http_assets/...
 	find . -name '*.go' | grep -v '^\.\/vendor' | xargs gofmt -w -s
 	CGO_ENABLED=0 go build -ldflags "-X main.Version=$(VERSION)" ./cmd/carbon-relay-ng
 
