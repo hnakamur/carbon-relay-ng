@@ -23,7 +23,6 @@ type Aggregator struct {
 	outFmt       []byte
 	Cache        bool
 	reCache      map[string]CacheEntry
-	reCacheMutex sync.Mutex
 	Interval     uint                  // expected interval between values in seconds, we will quantize to make sure alginment to interval-spaced timestamps
 	Wait         uint                  // seconds to wait after quantized time value before flushing final outcome and ignoring future values that are sent too late.
 	DropRaw      bool                  // drop raw values "consumed" by this aggregator
@@ -255,15 +254,12 @@ func (a *Aggregator) matchWithCache(key []byte) (string, bool) {
 		return a.Matcher.MatchRegexAndExpand(key, a.outFmt)
 	}
 
-	a.reCacheMutex.Lock()
-
 	var outKey string
 	var ok bool
 	entry, ok := a.reCache[string(key)]
 	if ok {
 		entry.seen = uint32(a.now().Unix())
 		a.reCache[string(key)] = entry
-		a.reCacheMutex.Unlock()
 		return entry.key, entry.match
 	}
 
@@ -273,7 +269,6 @@ func (a *Aggregator) matchWithCache(key []byte) (string, bool) {
 		outKey,
 		uint32(a.now().Unix()),
 	}
-	a.reCacheMutex.Unlock()
 
 	return outKey, ok
 }
@@ -304,7 +299,6 @@ func (a *Aggregator) run() {
 			// the entire keyspace. This may stop working properly with future go releases.  Will need to come up with smth better.
 			if a.reCache != nil {
 				cutoff := uint32(now.Add(-100 * time.Duration(a.Wait) * time.Second).Unix())
-				a.reCacheMutex.Lock()
 				for k, v := range a.reCache {
 					if v.seen < cutoff {
 						delete(a.reCache, k)
@@ -312,7 +306,6 @@ func (a *Aggregator) run() {
 						break // stop looking when we don't see old entries. we'll look again soon enough.
 					}
 				}
-				a.reCacheMutex.Unlock()
 			}
 		case <-a.snapReq:
 			aggsCopy := make(map[uint]*aggregation)
