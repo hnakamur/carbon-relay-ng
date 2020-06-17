@@ -3,7 +3,9 @@ package aggregator
 import (
 	"crypto/md5"
 	"fmt"
+	"log"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -183,10 +185,18 @@ func (a *Aggregator) Flush(cutoff uint) {
 			if ok {
 				if len(results) == 1 {
 					a.out <- []byte(fmt.Sprintf("%s %f %d", key, results[0].val, ts))
+					if debugLogEnabled {
+						log.Printf("Flush\tkey:%s\tvalue:%s\ttime:%d",
+							key, strconv.FormatFloat(results[0].val, 'f', -1, 64), ts)
+					}
 					a.numFlushed.Inc(1)
 				} else {
 					for _, result := range results {
 						a.out <- []byte(fmt.Sprintf("%s.%s %f %d", key, result.fcnName, result.val, ts))
+						if debugLogEnabled {
+							log.Printf("Flush\tkey:%s%s\tvalue:%s\ttime:%d",
+								key, result.fcnName, strconv.FormatFloat(result.val, 'f', -1, 64), ts)
+						}
 						a.numFlushed.Inc(1)
 					}
 				}
@@ -290,6 +300,10 @@ func (a *Aggregator) run() {
 			a.numIn.Inc(1)
 			ts := uint(msg.ts)
 			quantized := ts - (ts % a.Interval)
+			if debugLogEnabled {
+				log.Printf("AddOrCreate\tkey:%s\tvalue:%s\ttime:%d\torigKey:%s",
+					outKey, strconv.FormatFloat(msg.val, 'f', -1, 64), quantized, msg.buf[0])
+			}
 			a.AddOrCreate(outKey, msg.ts, quantized, msg.val)
 		case now := <-a.tick:
 			thresh := now.Add(-time.Duration(a.Wait) * time.Second)

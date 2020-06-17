@@ -46,6 +46,7 @@ var (
 	blockProfileRate = flag.Int("block-profile-rate", 0, "see https://golang.org/pkg/runtime/#SetBlockProfileRate")
 	memProfileRate   = flag.Int("mem-profile-rate", 512*1024, "0 to disable. 1 for max precision (expensive!) see https://golang.org/pkg/runtime/#pkg-variables")
 	enablePprof      = flag.Bool("enable-pprof", false, "Will enable debug endpoints on /debug/pprof/")
+	aggLogFile       = flag.String("agg-log", "", "aggregator log file")
 	badMetrics       *badmetrics.BadMetrics
 	Version          = "unknown"
 )
@@ -127,6 +128,14 @@ func main() {
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
+	}
+
+	if *aggLogFile != "" {
+		cleanup, err := aggregator.InitDebugLog(*aggLogFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer cleanup()
 	}
 
 	if len(config.Instance) == 0 {

@@ -1,7 +1,9 @@
 package aggregator
 
 import (
+	"log"
 	"math"
+	"os"
 	"sync"
 	"time"
 
@@ -14,12 +16,25 @@ var numTooOld metrics.Counter
 var rangeTracker *RangeTracker
 var flushes = util.NewLimiter(1)
 var flushWaiting = stats.Gauge("unit=aggregator.what=flush_waiting")
+var debugLogEnabled bool
 
 var aggregatorReporter *AggregatorReporter
 
 func InitMetrics() {
 	numTooOld = stats.Counter("module=aggregator.unit=Metric.what=TooOld")
 	rangeTracker = NewRangeTracker()
+}
+
+func InitDebugLog(filename string) (cleanup func(), err error) {
+	debugLogEnabled = true
+	aggLogFile, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		return func() {}, err
+	}
+	log.SetOutput(aggLogFile)
+	return func() {
+		aggLogFile.Close()
+	}, nil
 }
 
 type RangeTracker struct {
